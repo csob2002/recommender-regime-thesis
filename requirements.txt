@@ -1,0 +1,19 @@
+# Exact main-experiment environment recorded in the thesis appendix.
+# Python used in the submitted run: 3.9.25.
+#
+# CUDA build note:
+# The submitted run used torch 2.6.0+cu124. The line below uses the
+# PyTorch CUDA 12.4 wheel index. On CPU-only/macOS environments, replace
+# "torch==2.6.0+cu124" with "torch==2.6.0".
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.11.4
+scikit-learn==1.6.1
+joblib==1.5.3
+torch==2.6.0+cu124
+recbole==1.2.1
+scikit-surprise==1.1.4
+tqdm==4.67.3
+PyYAML==6.0.3
