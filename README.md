@@ -1,4 +1,4 @@
-# Recommender Regime Pipeline
+# Recommender Filtering Pipeline
 
 This repository contains the experiment code and cleaned result tables used for the MSc thesis:
 
