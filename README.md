@@ -4,132 +4,171 @@ This repository contains the experiment code and cleaned result tables used for 
 
 **Exploring Performance Variability in Recommender Systems: The Role of Sparsity and Dataset Characteristics**
 
-The pipeline prepares controlled user–item interaction regimes, trains RecBole models, and evaluates Top-K recommendation quality with an external sampled-candidate evaluator.
-
-## Submission artifact
-
-The final submitted state should be identified by a fixed commit and release tag rather than by the mutable `main` branch.
-
-Planned submission tag:
-
-```text
-v1.0-thesis-submission
-```
-
-Create the tag only after the final README, code, result CSVs, and SHA256 manifest have been committed and checked.
+The pipeline prepares controlled user-item interaction regimes, trains RecBole models, and evaluates Top-K recommendation quality with a shared external evaluator.
 
 ## Repository contents
 
 | Path | Purpose |
 |---|---|
-| `common.py` | Shared configuration, input normalization, splitting, candidate sampling, ranking metrics, and artifact paths. |
-| `prepare_variants.py` | Builds fixed-users, fixed-items, k-core, random-drop, tail-drop stress, size-matched k-core, and add-back variants. |
-| `recbole_models.py` | Trains and evaluates BPR, ItemKNN, LightGCN, NeuMF, and MultiVAE through RecBole. |
-| `preprocessing_lastfm.py` | Converts Last.fm play-count data to implicit interactions. |
-| `preprocessing_online_retail.py` | Converts Online Retail transactions to implicit interactions. |
-| `preprocessing_steam.py` | Converts Steam review records to implicit interactions. |
-| `requirements.txt` | Python packages used by the recorded experiment environment. |
-| `results/main_results.csv` | Main regime-family aggregates. |
+| `common.py` | Shared configuration, input normalization, splitting, candidate sampling, ranking metrics, and output paths. |
+| `prepare_variants.py` | Builds fixed-users, fixed-items, k-core, random-drop, size-matched k-core, tail-drop stress, and add-back variants. |
+| `recbole_models.py` | Trains and evaluates BPR, ItemKNN, LightGCN, NeuMF, and MultiVAE. |
+| `preprocessing_lastfm.py` | Converts Last.fm play-count data into implicit interactions. |
+| `preprocessing_online_retail.py` | Converts Online Retail transactions into implicit interactions. |
+| `preprocessing_steam.py` | Converts Steam review records into implicit interactions. |
+| `requirements.txt` | Python dependencies used by the recorded experiment environment. |
+| `results/main_results.csv` | Main regime-family results. |
 | `results/results_kcore_sizematch.csv` | Size-matched k-core control. |
 | `results/results_aggressive_taildrop.csv` | Auxiliary fixed-users tail-drop stress test. |
 | `results/addback_results.csv` | KC50 add-back diagnostic used in Appendix A.10. |
-| `artifact_manifest_sha256.txt` | SHA256 hashes for the final submitted files. |
 
-Raw datasets, materialized variants, full RecBole run directories, model checkpoints, saved recommendation lists, and LaTeX sources are not included.
+Raw datasets, generated variants, RecBole run directories, model checkpoints, and saved recommendation lists are not included.
 
 ## Experiment overview
 
-The thesis compares several ways of changing interaction density and retained support:
+The experiments use implicit-feedback Top-K recommendation.
 
-- fixed-users item head/tail filtering;
-- fixed-items user head/tail filtering;
-- k-core filtering with `k = 5, 10, 50`;
-- random interaction drop under fixed support;
-- size-matched k-core controls;
-- a KC50 add-back diagnostic that restores selected KC5-minus-KC50 interactions.
+- Models: BPR, ItemKNN, LightGCN, NeuMF, and MultiVAE
+- Main metric: NDCG@10
+- Additional accuracy metrics: Precision@10, Recall@10, and MRR@10
+- Evaluation: one held-out positive and 1000 sampled negative candidates per evaluable user
+- Split: user-level leave-one-out after variant construction
+- Timestamped datasets: chronological leave-one-out when a usable timestamp is available
+- Non-timestamped datasets: seeded random leave-one-out
+- Main model-run seeds: 42, 43, and 44
+- Training: fixed 20-epoch configurations without a separate tuning sweep
 
-The model portfolio is:
+The reported scores are sampled-candidate results, not full-catalog ranking scores.
 
-```text
-BPR, ItemKNN, LightGCN, NeuMF, MultiVAE
-```
+## Datasets and preprocessing
 
-The main ranking metric is `NDCG@10`. The code also reports `Precision@10`, `Recall@10`, and `MRR@10`; optional beyond-accuracy metrics can be enabled separately.
+The pipeline was used with four datasets:
 
-## Expected interaction format
+- LFM 2B subset
+- MovieLens 20M
+- Online Retail
+- Steam
 
-The main scripts expect an input table that can be normalized to:
+The expected interaction format is:
 
 ```text
 user_id,item_id,rating[,timestamp]
 ```
 
-`timestamp` is optional. Timestamped datasets can use chronological leave-one-out; otherwise the split falls back to random leave-one-out under the configured seed.
+`timestamp` is optional.
 
-Explicit ratings can be converted to implicit positives. The default rule is:
+Explicit ratings can be converted into implicit positives with:
 
 ```text
 rating >= ceil(0.8 * RATING_MAX)
 ```
 
-For a 1–5 scale, this retains ratings 4 and 5.
+For a 1-5 rating scale, this keeps ratings 4 and 5.
+
+### Last.fm
+
+```bash
+python preprocessing_lastfm.py --in inter.txt --out ratings.csv
+```
+
+### Online Retail
+
+```bash
+python preprocessing_online_retail.py \
+  --in OnlineRetail.csv \
+  --out ratings_raw_full.csv
+```
+
+### Steam
+
+Inspect the source format:
+
+```bash
+python preprocessing_steam.py \
+  --in steam_reviews.json \
+  --out rating.csv \
+  --inspect
+```
+
+Convert the complete file:
+
+```bash
+python preprocessing_steam.py \
+  --in steam_reviews.json \
+  --out rating.csv \
+  --db steam_reviews.sqlite \
+  --batch-size 5000
+```
+
+## Installation
+
+The recorded environment used Python 3.9, RecBole 1.2.1, and PyTorch 2.6.0.
+
+```bash
+python3.9 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+For CPU execution:
+
+```bash
+export RECBOLE_DEVICE=cpu
+```
 
 ## Output layout
 
-Generated outputs are written under:
+Generated runs are written under:
 
 ```text
 $EXPORT_BASE/$DATASET_NAME/$RUN_ID/
 ```
 
-Typical subdirectories are:
+The main subdirectories are:
 
 ```text
 variants/    materialized ratings_*.csv files
-splits/      train.csv, test.csv, and metadata
-artifacts/   RecBole input files, model states, metrics, and optional Top-K files
-results/     per-seed and aggregated result CSVs
+splits/      train.csv, test.csv, and split metadata
+artifacts/   RecBole inputs, model states, metrics, and optional Top-K files
+results/     per-seed and aggregate result CSVs
 meta/        run-level metadata
 ```
 
-The repository-level `results/` directory contains only cleaned aggregate tables copied from completed runs.
+Use the same `RUN_ID` for variant preparation and model execution.
 
-## Installation
+The repository-level `results/` directory is different from a run-local `results/` directory. It contains cleaned reporting tables copied from completed experiments.
 
-Create a Python environment and install the recorded dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-The recorded environment used Python 3.9 and RecBole 1.2.1. GPU execution used PyTorch 2.6.0 with CUDA 12.4; CPU execution is also supported for code inspection and smaller runs.
-
-## Main configuration
-
-The scripts are controlled through environment variables. The most important settings are:
+## Main environment variables
 
 | Variable | Purpose |
 |---|---|
 | `INPUT_RATINGS_PATH` | Input interaction file. |
-| `EXPORT_BASE` | Base output directory. |
-| `DATASET_NAME` | Dataset name used in output paths. |
+| `EXPORT_BASE` | Base directory for generated runs. |
+| `DATASET_NAME` | Dataset label used in output paths. |
 | `RUN_ID` | Shared identifier for preparation and model execution. |
-| `SEED` | Main construction seed. |
-| `SEEDS` | Comma-separated model-run seeds, e.g. `42,43,44`. |
-| `TOPK` | Ranking cutoff; thesis value: `10`. |
-| `NEGATIVE_CANDIDATE_SAMPLE` | Sampled negatives per evaluable user; thesis value: `1000`. |
-| `RECBOLE_DEVICE` | `cpu` or a CUDA device such as `cuda:0`. |
-| `RUN_MODEL_LIST` | Comma-separated model subset. |
+| `RUN_TAG` | Optional suffix for result filenames. |
+| `SEED` | Main construction and split seed. |
+| `SEEDS` | Comma-separated model-run seeds, for example `42,43,44`. |
+| `TOPK` | Ranking cutoff; the thesis uses `10`. |
+| `NEGATIVE_CANDIDATE_SAMPLE` | Number of sampled negative candidates; the thesis uses `1000`. |
+| `IMPLICIT_MIN_POS_PER_USER` | Optional minimum number of positives retained per user. |
+| `BINARIZE_FROM_EXPLICIT` | Enables explicit-to-implicit conversion. |
+| `BINARY_THRESHOLD_FRACTION` | Fraction of `RATING_MAX` used as the positivity threshold. |
+| `RECBOLE_DEVICE` | Device used by RecBole, for example `cpu` or `cuda:0`. |
+| `RUN_MODEL_LIST` | Comma-separated subset of models to run. |
 
-## Main run
+## Standard workflow
 
-Use the same `RUN_ID` for variant preparation and model execution.
+Set the run identity:
 
 ```bash
-export RUN_ID=my_run_$(date +%Y%m%d_%H%M%S)
-export INPUT_RATINGS_PATH=/path/to/ratings.csv
 export EXPORT_BASE=/path/to/exports
 export DATASET_NAME=my_dataset
+export INPUT_RATINGS_PATH=/path/to/ratings.csv
+export RUN_ID=my_run_$(date +%Y%m%d_%H%M%S)
+export RUN_TAG=my_run
+
 export SEED=42
 export SEEDS="42,43,44"
 export TOPK=10
@@ -141,7 +180,8 @@ Prepare variants and splits:
 ```bash
 export RUN_PREPARE_VARIANTS=1
 export RUN_RECBOLE_MODELS=0
-python -u prepare_variants.py
+
+python -u prepare_variants.py 2>&1 | tee "prepare_${RUN_ID}.log"
 ```
 
 Train and evaluate models:
@@ -149,112 +189,111 @@ Train and evaluate models:
 ```bash
 export RUN_PREPARE_VARIANTS=0
 export RUN_RECBOLE_MODELS=1
+
 export RUN_MODEL_LIST="BPR,ItemKNN,LightGCN,NeuMF,MultiVAE"
-python -u recbole_models.py
+export RECBOLE_DEVICE=cuda:0
+export RECBOLE_EPOCHS=20
+export SAVE_RECS=1
+
+python -u recbole_models.py 2>&1 | tee "recbole_${RUN_ID}.log"
 ```
 
 ## Variant families
 
-Common preparation switches include:
-
-| Family | Main settings |
+| Family | Main preparation settings |
 |---|---|
 | Fixed-users item filtering | `PREP_ITEM_VARIANTS=1` |
 | Fixed-items user filtering | `PREP_USER_VARIANTS=1` |
-| k-core | `PREP_KCORE_VARIANTS=1`, `KCORE_KS="5,10,50"` |
+| Plain k-core | `PREP_KCORE_VARIANTS=1`, `KCORE_KS="5,10,50"`, `KCORE_SAVE_PLAIN=1` |
 | Random drop | `PREP_RANDOM_DROP_VARIANTS=1`, `RANDDROP_PCTS="0.2,0.4,0.6"` |
 | Tail-drop stress | `PREP_ONLY_TAILDROP_STRESS=1`, `TAILDROP_STRESS_PCTS="0.4,0.6,0.8"` |
 | Size-matched k-core | `PREP_ONLY_KCORE_SIZE_MATCH=1`, `KCORE_SIZE_MATCH_TARGET=50` |
-| Add-back | `PREP_ONLY_ADDBACK_VARIANTS=1`, `ADDBACK_SOURCE_K=5`, `ADDBACK_TARGET_K=50` |
+| KC50 add-back | `PREP_ONLY_ADDBACK_VARIANTS=1`, `ADDBACK_SOURCE_K=5`, `ADDBACK_TARGET_K=50` |
 
-## KC50 add-back diagnostic
+Important details:
 
-The add-back experiment starts from KC50 and restores selected interactions that are present in KC5 but absent from KC50. The submitted percentage grid is:
+- Fixed-users variants share an aligned user set while the item catalog changes.
+- Fixed-items variants approximately control the item catalog while the retained user population changes.
+- KC5, KC10, and KC50 are separate minimum-degree-filtered graphs and are not aligned across `k`.
+- Random-drop variants keep the selected user-item support while interactions are removed subject to degree constraints.
+- Size matching controls user and item cardinality only. It does not match interaction count, degree distribution, topology, popularity, or exact identities.
+- Add-back can restore users and items as well as interactions.
+
+## Add-back experiment
+
+The add-back diagnostic starts from KC50 and reintroduces interactions that are present in KC5 but absent from KC50.
+
+The tested batches are:
 
 ```text
 10%, 25%, 50%, 100%
 ```
 
-Typical preparation settings:
+The main settings are:
 
 ```bash
 export PREP_ONLY_ADDBACK_VARIANTS=1
-export PREP_ADDBACK_VARIANTS=1
 export ADDBACK_SOURCE_K=5
 export ADDBACK_TARGET_K=50
-export ADDBACK_PCTS="0.1,0.25,0.5,1.0"
-export ADDBACK_SEEDS="42"
-export ADDBACK_SAVE_TARGET_PLAIN=1
+export ADDBACK_PCTS="0.10,0.25,0.50,1.00"
 export ADDBACK_COMMON_TEST_FROM_TARGET=1
+export ADDBACK_COMMON_NEGATIVES=1
 ```
 
-Typical model settings:
+The submitted aggregate uses the following construction-seed coverage:
 
-```bash
-export RUN_ONLY_ADDBACK_VARIANTS=1
-export RUN_ADDBACK_VARIANTS=1
-export SEEDS="42,43,44"
-export RUN_MODEL_LIST="BPR,ItemKNN,LightGCN,NeuMF,MultiVAE"
-```
+- LFM 2B subset: seed 42
+- MovieLens 20M: seed 42
+- Online Retail: seeds 42, 43, and 44
+- Steam: seeds 42, 43, and 44
 
-`ADDBACK_SEEDS` controls construction of the add-back variants. `SEEDS` controls repeated model training and evaluation. These are different sources of randomness and should not be conflated.
+Construction seeds and model-run seeds are different sources of randomness.
 
-The add-back diagnostic is descriptive rather than causal. Restoring interactions can also restore many users and items, so the experiment changes retained support as well as edge count. It does not include matched random, degree-matched, or popularity-matched edge-addition controls.
+The add-back experiment is a diagnostic rather than a causal test. Adding KC5-minus-KC50 interactions can also restore users and items, so the resulting variants do not isolate edge quantity under fixed support. The experiment also lacks matched random, degree-matched, and popularity-matched edge-addition controls.
 
-## Submitted result files
+## Result files
 
-The four CSV files under `results/` are the numerical sources used by the thesis:
+### `results/main_results.csv`
+
+Contains the main results for:
+
+- fixed-users item filtering
+- fixed-items user filtering
+- plain k-core
+- random-drop fixed support
+
+### `results/results_kcore_sizematch.csv`
+
+Contains KC5 and KC10 variants reduced to the user and item cardinality of KC50.
+
+### `results/results_aggressive_taildrop.csv`
+
+Contains the auxiliary fixed-users tail-drop stress levels:
 
 ```text
-results/main_results.csv
-results/results_kcore_sizematch.csv
-results/results_aggressive_taildrop.csv
-results/addback_results.csv
+40%, 60%, 80%
 ```
 
-`addback_results.csv` contains the final refreshed Last.fm and MovieLens common-test12 exports together with the Online Retail and Steam add-back runs.
+### `results/addback_results.csv`
 
-## Artifact manifest
+Contains the final KC50 add-back rows used in Appendix A.10, including:
 
-After the final files are fixed, generate a SHA256 manifest. On PowerShell:
+- model-level metrics
+- construction-seed suffixes where available
+- retained user, item, and interaction counts
+- density and sparsity
+- average user and item degree
+- run identifiers
 
-```powershell
-$files = @(
-  "README.md",
-  "common.py",
-  "prepare_variants.py",
-  "recbole_models.py",
-  "preprocessing_lastfm.py",
-  "preprocessing_online_retail.py",
-  "preprocessing_steam.py",
-  "requirements.txt",
-  "results/main_results.csv",
-  "results/results_kcore_sizematch.csv",
-  "results/results_aggressive_taildrop.csv",
-  "results/addback_results.csv"
-)
+## Interpretation limits
 
-$manifest = foreach ($file in $files) {
-  $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
-  "$hash  $file"
-}
+The experiments compare reconstructed benchmark regimes. Several transformations change users, items, interactions, and the evaluation universe at the same time.
 
-$manifest | Set-Content -Encoding ascii artifact_manifest_sha256.txt
-```
+In particular:
 
-Check the final commit identifier with:
-
-```bash
-git rev-parse HEAD
-```
-
-## Submission tag and release
-
-After the final cleanup commit has been pushed:
-
-```bash
-git tag -a v1.0-thesis-submission -m "MSc thesis submission artifact"
-git push origin v1.0-thesis-submission
-```
-
-Create the GitHub release from the same tag. The thesis should cite the fixed tag or commit, not the mutable `main` branch.
+- higher density does not imply more useful collaborative information;
+- k-core variants are not the same task at different densities;
+- sampled-candidate scores depend on the retained catalog;
+- size matching does not control graph topology or popularity structure;
+- add-back does not keep user and item support fixed;
+- the fixed 20-epoch setup is intended for consistent regime comparison, not leaderboard claims.
