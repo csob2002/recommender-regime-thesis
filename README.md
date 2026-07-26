@@ -2,7 +2,7 @@
 
 This repository contains the experiment code and cleaned result tables used for the MSc thesis:
 
-**Exploring Performance Variability in Recommender Systems: The Role of Sparsity and Dataset Characteristics**
+**Exploring Performance Variability in Recommender Systems: The Role of Sparsity and Other Dataset Characteristics**
 
 The pipeline prepares controlled user-item interaction regimes, trains RecBole models, and evaluates Top-K recommendation quality with a shared external evaluator.
 
@@ -20,7 +20,7 @@ The pipeline prepares controlled user-item interaction regimes, trains RecBole m
 | `results/main_results.csv` | Main regime-family results. |
 | `results/results_kcore_sizematch.csv` | Size-matched k-core control. |
 | `results/results_aggressive_taildrop.csv` | Auxiliary fixed-users tail-drop stress test. |
-| `results/addback_results.csv` | KC50 add-back diagnostic used in Appendix A.10. |
+| `results/addback_results.csv` | KC50 add-back diagnostic used in Appendix A.13. |
 
 Raw datasets, generated variants, RecBole run directories, model checkpoints, and saved recommendation lists are not included.
 
@@ -276,7 +276,7 @@ Contains the auxiliary fixed-users tail-drop stress levels:
 
 ### `results/addback_results.csv`
 
-Contains the final KC50 add-back rows used in Appendix A.10, including:
+Contains the final KC50 add-back rows used in Appendix A.13, including:
 
 - model-level metrics
 - construction-seed suffixes where available
